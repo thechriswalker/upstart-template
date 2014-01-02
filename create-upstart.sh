@@ -1,13 +1,19 @@
 #!/bin/bash
-set -e
+
 # This is an OSX hack, requiring you have gnuutils installed, with or without a prefix
 # if not the script will fail.
 READLINK=$(which greadlink)
 test -x "$READLINK" || READLINK=$(which readlink)
 
 BINARY="$($READLINK -f "$1")"
-## get fll path...
-test -x $BINARY || { echo "Binary file not present, or not executable!" >&2; exit 1; }
+## get full path...
+if [ "$BINARY" == "" ];
+then
+  echo "No Binary given!" >&2
+  exit 1
+fi
+
+test -x $BINARY || { echo "Binary not executable!" >&2; exit 1; }
 
 APP_NAME="$(basename $BINARY)"
 
@@ -18,7 +24,7 @@ function prompt() { # VAR prompt default
   then
     temp="$3";
   fi
-  eval $1="$temp"
+  eval "$1=\"$temp\""
 }
 
 prompt WORKING_DIR "App Working Directory?" "$(pwd)"
@@ -27,7 +33,7 @@ prompt LOG "Log output to?" "/var/log/${APP_NAME}.log"
 prompt DESCRIPTION "App Description" "${APP_NAME}"
 
 cat << EOF
-description     "App"
+description     "$DESCRIPTION"
 author          "Chris Walker <github@thechriswalker.net>"
 
 start on filesystem or runlevel [2345]
@@ -41,18 +47,16 @@ umask 022
 
 console none
 
-USER=$USER
-WORKING_DIR="$WORKING_DIR"
-BINARY="$BINARY"
-OUTPUT="$LOG"
-
-pre-start script
-    test -x \$BINARY || { stop; exit 0; }
-    test -e \$WORKING_DIR || { stop; exit 0; }
-    test -e \$OUTPUT || { touch \$OUTPUT && chown \$USER:\$USER \$OUTPUT }
-end script
+env USER=$USER
+env WORKING_DIR="$WORKING_DIR"
+env BINARY="$BINARY"
+env OUTPUT="$LOG"
 
 # Start
-chdir \$WORKING_DIR
-exec sudo -u \$USER \$BINARY 2>&1 >>\$OUTPUT
+script
+  cd "\$WORKING_DIR"
+  exec sudo -u \$USER "\$BINARY" 2>&1 >>"\$OUTPUT"
+end script
+
 EOF
+
